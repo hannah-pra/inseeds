@@ -27,11 +27,33 @@ class Component(base.Component):
 
         # self.world.farmers = set(farmers_sorted
 
+    def init_decision_makers(self, decision_maker_class, **kwargs):
+        """Initialize decision makers."""
+        decision_makers = []
+
+        # Create a few decision makers at the world level (not tied to cells)
+        num_decision_makers = getattr(
+            self.model.config.coupled_config, 'num_decision_makers', 3
+        )
+        
+        for i in range(num_decision_makers):
+            decision_maker = decision_maker_class(world=self.world, model=self)
+            decision_makers.append(decision_maker)
+
     def update(self, t):
         super().update(t)
 
+        # Update farmers
         farmers_sorted = sorted(
             self.world.farmers, key=lambda farmer: farmer.avg_hdate
         )
         for farmer in farmers_sorted:
             farmer.update(t)
+
+        # Update decision makers
+        decision_makers_sorted = sorted(
+            self.world.decision_makers, 
+            key=lambda dm: dm.decision_maker_type_id
+        )
+        for decision_maker in decision_makers_sorted:
+            decision_maker.update(t)

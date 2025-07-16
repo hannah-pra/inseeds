@@ -29,6 +29,12 @@ class Component:
                 [df] + [farmer.output_table for farmer in self.world.farmers]
             )
 
+        # get all decision maker outputs
+        if hasattr(self.world, "decision_makers"):
+            df = pd.concat(
+                [df] + [dm.output_table for dm in self.world.decision_makers]
+            )
+
         return df
 
     def write_output_table(self, init=False, file_format="parquet"):
