@@ -44,15 +44,25 @@ class Component(base.Component):
         """Initialize lobby groups."""
         lobby_groups = []
 
-        # Create a few lobby groups at the world level
-        num_lobby_groups = getattr(
-            self.model.config.coupled_config, 'num_lobby_groups', 2
+        # Import AFT enum from farmer module
+        from inseeds.components.farming.farmer import AFT
+
+        # Create two lobby groups - one for each AFT type
+        traditionalist_group = lobby_group_class(
+            world=self.world, 
+            model=self, 
+            aft_type=AFT.traditionalist
         )
-        
-        for i in range(num_lobby_groups):
-            lobby_group = lobby_group_class(world=self.world, model=self)
-            lobby_group.init_world_attributes()  # Initialize world-dependent attributes
-            lobby_groups.append(lobby_group)
+        traditionalist_group.init_world_attributes()
+        lobby_groups.append(traditionalist_group)
+
+        pioneer_group = lobby_group_class(
+            world=self.world, 
+            model=self, 
+            aft_type=AFT.pioneer
+        )
+        pioneer_group.init_world_attributes()
+        lobby_groups.append(pioneer_group)
 
     def update(self, t):
         super().update(t)
