@@ -40,6 +40,20 @@ class Component(base.Component):
             decision_maker = decision_maker_class(world=self.world, model=self)
             decision_makers.append(decision_maker)
 
+    def init_lobby_groups(self, lobby_group_class, **kwargs):
+        """Initialize lobby groups."""
+        lobby_groups = []
+
+        # Create a few lobby groups at the world level
+        num_lobby_groups = getattr(
+            self.model.config.coupled_config, 'num_lobby_groups', 2
+        )
+        
+        for i in range(num_lobby_groups):
+            lobby_group = lobby_group_class(world=self.world, model=self)
+            lobby_group.init_world_attributes()  # Initialize world-dependent attributes
+            lobby_groups.append(lobby_group)
+
     def update(self, t):
         super().update(t)
 
@@ -53,7 +67,15 @@ class Component(base.Component):
         # Update decision makers
         decision_makers_sorted = sorted(
             self.world.decision_makers, 
-            key=lambda dm: dm.decision_maker_type_id
+            key=lambda dm: dm.decision_maker_id
         )
         for decision_maker in decision_makers_sorted:
             decision_maker.update(t)
+
+        # Update lobby groups
+        lobby_groups_sorted = sorted(
+            self.world.lobby_groups, 
+            key=lambda lg: lg.lobby_group_id
+        )
+        for lobby_group in lobby_groups_sorted:
+            lobby_group.update(t)

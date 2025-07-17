@@ -29,3 +29,13 @@ class World(base.World):
             if decision_maker.__class__.__name__ == "DecisionMaker"  # noqa
         }
         return decision_makers
+
+    @property
+    def lobby_groups(self):
+        """Return the set of all lobby groups."""
+        lobby_groups = {
+            lobby_group
+            for lobby_group in self.groups
+            if lobby_group.__class__.__name__ == "LobbyGroup"  # noqa
+        }
+        return lobby_groups
