@@ -14,7 +14,7 @@ import pandas as pd
 import inseeds.components.base as base
 
 
-class DecisionMaker(base.Entity):
+class DecisionMaker(base.Individual):
     """Decision Maker entity type class.
     
     This agent operates at the world level and has access to all cells
@@ -27,7 +27,7 @@ class DecisionMaker(base.Entity):
         """Initialize an instance of DecisionMaker."""
         self.world = world
         self.model = model
-        super().__init__(**kwargs)
+        super().__init__(model=model, **kwargs)
 
         # Initialize basic attributes
         self.init_basic_attributes()
@@ -60,7 +60,38 @@ class DecisionMaker(base.Entity):
         if not variables:
             return pd.DataFrame()
         else:
-            df = super().output_table
+            # Create the base DataFrame with the standard structure
+            df = pd.DataFrame(
+                {
+                    "year": [self.model.lpjml.sim_year] * len(variables),
+                    "entity": [self.__class__.__name__] * len(variables),
+                    "variable": [
+                        getattr(
+                            getattr(
+                                self.__class__.output_variables, var, None
+                            ),
+                            "name",
+                            None,
+                        )
+                        for var in variables
+                    ],
+                    "value": [getattr(self, var, None) for var in variables],
+                    "unit": [
+                        getattr(
+                            getattr(
+                                getattr(
+                                    self.__class__.output_variables, var, None
+                                ),
+                                "unit",
+                                None,
+                            ),
+                            "symbol",
+                            None,
+                        )
+                        for var in variables
+                    ],
+                }
+            )
 
             # For world-level decision makers, we don't have cell-specific data
             # So we use world-level identifiers instead
@@ -72,12 +103,34 @@ class DecisionMaker(base.Entity):
             if hasattr(self, 'world') and self.world is not None:
                 try:
                     if hasattr(self.world, "country"):
-                        df.insert(4, "country", [str(self.world.country.item())] * len(variables))
+                        # Handle xarray with multiple values - take the first non-zero value
+                        country_data = self.world.country.values
+                        if country_data.size > 0:
+                            # Find first non-zero value
+                            non_zero_indices = np.nonzero(country_data)[0]
+                            if len(non_zero_indices) > 0:
+                                country_value = country_data[non_zero_indices[0]]
+                            else:
+                                country_value = country_data[0] if country_data.size > 0 else 0
+                        else:
+                            country_value = 0
+                        df.insert(4, "country", [str(country_value)] * len(variables))
                     if hasattr(self.world, "area"):
+                        # Handle xarray with multiple values - take the first non-zero value
+                        area_data = self.world.area.values
+                        if area_data.size > 0:
+                            # Find first non-zero value
+                            non_zero_indices = np.nonzero(area_data)[0]
+                            if len(non_zero_indices) > 0:
+                                area_value = area_data[non_zero_indices[0]]
+                            else:
+                                area_value = area_data[0] if area_data.size > 0 else 0
+                        else:
+                            area_value = 0
                         df.insert(
                             5,
                             "area [km2]",
-                            [round(float(self.world.area.item()) * 1e-6, 4)] * len(variables),
+                            [round(float(area_value) * 1e-6, 4)] * len(variables),
                         )
                 except (AttributeError, TypeError):
                     # If world attributes are not available, skip them
@@ -123,6 +176,46 @@ class DecisionMaker(base.Entity):
             return 1e-3
         else:
             return np.mean(all_soilc)
+
+    def get_defined_outputs(self):
+        """Get the list of defined output variables for this entity."""
+        # This method is inherited from base.Entity but needs to be overridden
+        # because the model attribute points to the Component, not the Model
+        if not hasattr(self, 'model') or self.model is None:
+            print(f"DEBUG: model is None or doesn't exist")
+            return []
+        
+        # Try to access config through the model (Component)
+        if hasattr(self.model, 'config'):
+            config = self.model.config
+        else:
+            print(f"DEBUG: model has no config attribute")
+            return []
+            
+        # Check if the output variables are defined for this entity type
+        entity_name = self.__class__.__name__.lower()
+        print(f"DEBUG: entity_name = {entity_name}")
+        
+        if hasattr(config, 'coupled_config') and hasattr(config.coupled_config, 'output'):
+            output_dict = config.coupled_config.output.to_dict()
+            print(f"DEBUG: output_dict keys = {list(output_dict.keys())}")
+            if entity_name in output_dict:
+                print(f"DEBUG: entity_name found in output_dict")
+                print(f"DEBUG: output_dict[{entity_name}] = {output_dict[entity_name]}")
+                print(f"DEBUG: self.__class__.output_variables.names = {self.__class__.output_variables.names}")
+                result = [
+                    var
+                    for var in self.__class__.output_variables.names
+                    if var in output_dict[entity_name]
+                ]
+                print(f"DEBUG: result = {result}")
+                return result
+            else:
+                print(f"DEBUG: entity_name not found in output_dict")
+        else:
+            print(f"DEBUG: config has no coupled_config or output")
+        
+        return []
 
     def update(self, t):
         """Update the decision maker."""

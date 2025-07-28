@@ -33,12 +33,38 @@ class Component(base.Component):
 
         # Create a few decision makers at the world level (not tied to cells)
         num_decision_makers = getattr(
-            self.model.config.coupled_config, 'num_decision_makers', 3
+            self.config.coupled_config, 'num_decision_makers', 3
         )
+        
+        print(f"Creating {num_decision_makers} decision makers...")
         
         for i in range(num_decision_makers):
             decision_maker = decision_maker_class(world=self.world, model=self)
             decision_makers.append(decision_maker)
+            
+        # Add decision makers to the world's individuals list
+        for decision_maker in decision_makers:
+            self.world.individuals.add(decision_maker)
+            
+        # Also store in world.decision_makers for the update method
+        if not hasattr(self.world, 'decision_makers'):
+            self.world.decision_makers = set()
+        self.world.decision_makers.update(decision_makers)
+            
+        print(f"Added {len(decision_makers)} decision makers to world. Total individuals: {len(self.world.individuals)}")
+        
+        # Debug: check if decision makers are in the world
+        dm_count = sum(1 for ind in self.world.individuals if ind.__class__.__name__ == "DecisionMaker")
+        print(f"Debug: Found {dm_count} DecisionMaker instances in world.individuals")
+        
+        # Debug: check what types of individuals are in the world
+        individual_types = {}
+        for ind in self.world.individuals:
+            class_name = ind.__class__.__name__
+            individual_types[class_name] = individual_types.get(class_name, 0) + 1
+        print(f"Debug: Individual types in world: {individual_types}")
+        
+        return decision_makers
 
     def init_lobby_groups(self, lobby_group_class, **kwargs):
         """Initialize lobby groups."""
@@ -46,6 +72,8 @@ class Component(base.Component):
 
         # Import AFT enum from farmer module
         from inseeds.components.farming.farmer import AFT
+
+        print("Creating 2 lobby groups...")
 
         # Create two lobby groups - one for each AFT type
         traditionalist_group = lobby_group_class(
@@ -63,6 +91,19 @@ class Component(base.Component):
         )
         pioneer_group.init_world_attributes()
         lobby_groups.append(pioneer_group)
+        
+        # Add lobby groups to the world's individuals list
+        for lobby_group in lobby_groups:
+            self.world.individuals.add(lobby_group)
+            
+        # Also store in world.lobby_groups for the update method
+        if not hasattr(self.world, 'lobby_groups'):
+            self.world.lobby_groups = set()
+        self.world.lobby_groups.update(lobby_groups)
+        
+        print(f"Added {len(lobby_groups)} lobby groups to world. Total individuals: {len(self.world.individuals)}")
+        
+        return lobby_groups
 
     def update(self, t):
         super().update(t)

@@ -30,10 +30,20 @@ class Component:
             )
 
         # get all decision maker outputs
-        if hasattr(self.world, "decision_makers"):
-            df = pd.concat(
-                [df] + [dm.output_table for dm in self.world.decision_makers]
-            )
+        if hasattr(self.world, "individuals"):
+            decision_makers = [dm for dm in self.world.individuals if dm.__class__.__name__ == "DecisionMaker"]
+            if decision_makers:
+                df = pd.concat(
+                    [df] + [dm.output_table for dm in decision_makers]
+                )
+
+        # get all lobby group outputs
+        if hasattr(self.world, "individuals"):
+            lobby_groups = [lg for lg in self.world.individuals if lg.__class__.__name__ == "LobbyGroup"]
+            if lobby_groups:
+                df = pd.concat(
+                    [df] + [lg.output_table for lg in lobby_groups]
+                )
 
         return df
 
