@@ -9,6 +9,31 @@ class World(base.World):
     def __init__(self, **kwargs):
         """Initialize an instance of World."""
         super().__init__(**kwargs)
+        
+        # Initialize networks for social interactions
+        self.init_networks()
+    
+    def init_networks(self):
+        """Initialize acquaintance and group membership networks."""
+        try:
+            import networkx as nx
+            
+            # Create acquaintance network
+            self.acquaintance_network = nx.Graph()
+            
+            # Create group membership network
+            self.group_membership_network = nx.Graph()
+            
+            print("DEBUG: Networks initialized successfully")
+            print(f"DEBUG: acquaintance_network type: {type(self.acquaintance_network)}")
+            print(f"DEBUG: group_membership_network type: {type(self.group_membership_network)}")
+            
+        except ImportError:
+            print("DEBUG: networkx not available, networks will not be initialized")
+            self.acquaintance_network = None
+            self.group_membership_network = None
+
+
 
     @property
     def farmers(self):

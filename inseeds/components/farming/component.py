@@ -14,6 +14,14 @@ class Component(base.Component):
         """Initialize farmers."""
         farmers = []
 
+        # Debug: Check if world has networks
+        print(f"DEBUG: World has acquaintance_network: {hasattr(self.world, 'acquaintance_network')}")
+        print(f"DEBUG: World has group_membership_network: {hasattr(self.world, 'group_membership_network')}")
+        if hasattr(self.world, 'acquaintance_network'):
+            print(f"DEBUG: acquaintance_network type: {type(self.world.acquaintance_network)}")
+        if hasattr(self.world, 'group_membership_network'):
+            print(f"DEBUG: group_membership_network type: {type(self.world.group_membership_network)}")
+
         for cell in self.world.cells:
             if cell.output.cftfrac.sum("band") == 0:
                 continue
@@ -25,7 +33,39 @@ class Component(base.Component):
         for farmer in farmers_sorted:
             farmer.init_neighbourhood()
 
-        # self.world.farmers = set(farmers_sorted
+        # Create acquaintance networks within AFT groups
+        self.create_aft_acquaintance_networks(farmers_sorted)
+
+    def create_aft_acquaintance_networks(self, farmers):
+        """Create acquaintance networks within AFT groups."""
+        if not hasattr(self.world, 'acquaintance_network'):
+            print("DEBUG: No acquaintance network available")
+            return
+            
+        # Group farmers by AFT
+        traditionalist_farmers = [f for f in farmers if f.aft.name == 'traditionalist']
+        pioneer_farmers = [f for f in farmers if f.aft.name == 'pioneer']
+        
+        print(f"DEBUG: Creating acquaintance networks - {len(traditionalist_farmers)} traditionalists, {len(pioneer_farmers)} pioneers")
+        
+        # Add all farmers to the network
+        for farmer in farmers:
+            self.world.acquaintance_network.add_node(farmer)
+        
+        # Create edges between traditionalist farmers
+        for i, farmer1 in enumerate(traditionalist_farmers):
+            for farmer2 in traditionalist_farmers[i+1:]:
+                self.world.acquaintance_network.add_edge(farmer1, farmer2)
+                print(f"DEBUG: Added edge between traditionalist farmers {farmer1.cell.grid.cell.item()} and {farmer2.cell.grid.cell.item()}")
+        
+        # Create edges between pioneer farmers
+        for i, farmer1 in enumerate(pioneer_farmers):
+            for farmer2 in pioneer_farmers[i+1:]:
+                self.world.acquaintance_network.add_edge(farmer1, farmer2)
+                print(f"DEBUG: Added edge between pioneer farmers {farmer1.cell.grid.cell.item()} and {farmer2.cell.grid.cell.item()}")
+        
+        print(f"DEBUG: Created {len(traditionalist_farmers) * (len(traditionalist_farmers) - 1) // 2} traditionalist edges")
+        print(f"DEBUG: Created {len(pioneer_farmers) * (len(pioneer_farmers) - 1) // 2} pioneer edges")
 
     def init_decision_makers(self, decision_maker_class, **kwargs):
         """Initialize decision makers."""
