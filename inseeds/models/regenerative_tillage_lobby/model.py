@@ -85,6 +85,7 @@ class LobbyGroup(farming.LobbyGroup):
         lobby_group_id=Variable("Lobby Group ID", "unique identifier for lobby group"),
         aft_type=Variable("AFT Type", "agent functional type this lobby group represents"),
         belief_value=Variable("Belief Value", "lobby group's belief about the system (-1.0 to 1.0)"),
+        
         count_0=Variable(
             "count practice 0",
             "number of farmers with practice 0 (conservation tillage)",
@@ -97,7 +98,15 @@ class LobbyGroup(farming.LobbyGroup):
             "majority practice count",
             "count of farmers with the majority practice",
         ),
-        agreement=Variable("Agreement", "fraction of majority practice among farmers"),
+        agreement=Variable(
+            "Agreement", 
+            "fraction of majority practice among farmers"
+        ),
+
+        contributed_yield=Variable(
+            "contributed crop yield",
+            "total crop yield contributed by all farmers in this lobby group (10% each)",
+        ),
         farmer_count=Variable("Farmer Count", "number of farmers in this lobby group"),
     )
 

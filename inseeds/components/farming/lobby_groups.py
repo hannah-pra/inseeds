@@ -39,6 +39,10 @@ class LobbyGroup(core.Group):
             "agreement fraction",
             "fraction of farmers following the majority practice",
         ),
+        contributed_yield=Variable(
+            "contributed crop yield",
+            "total crop yield contributed by all farmers in this lobby group (10% each)",
+        ),
     )
 
     # standard methods:
@@ -81,6 +85,9 @@ class LobbyGroup(core.Group):
         self.count_0 = 0
         self.count_1 = 0
         self.majority = 0
+        
+        # Initialize contributed yield
+        self.contributed_yield = 0.0
 
     def init_world_attributes(self):
         """Initialize world-dependent attributes when world is available."""
@@ -259,4 +266,11 @@ class LobbyGroup(core.Group):
                 self.count_0 = practices.count(0)
                 self.count_1 = practices.count(1)
                 self.majority = max(self.count_0, self.count_1)
-                self.agreement = self.majority / len(practices) 
+                self.agreement = self.majority / len(practices)
+        
+        # Calculate contributed yield from all farmers (10% each)
+        self.contributed_yield = 0.0
+        for farmer in self.farmers:
+            if hasattr(farmer, 'lobby_contribution'):
+                # Each farmer contributes 10% of their crop yield
+                self.contributed_yield += farmer.lobby_contribution

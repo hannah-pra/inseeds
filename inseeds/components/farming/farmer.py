@@ -53,6 +53,9 @@ class Farmer(core.Individual, base.Individual):
 
         # Same applies for cropyield (as for soilc)
         self.cropyield = self.cell_cropyield
+        
+        # Initialize lobby contribution
+        self.lobby_contribution = 0.0
 
     def init_aft(self):
         """Initialize the AFT of the agent."""
@@ -164,6 +167,11 @@ class Farmer(core.Individual, base.Individual):
             (1 - 1 / self.strategy_switch_duration) * self.soilc
             + 1 / self.strategy_switch_duration * self.cell_soilc
         )
+
+        # Calculate and deduct lobby group contribution (10% of crop yield)
+        if not self.control_run:
+            self.lobby_contribution = self.cropyield * 0.1
+            self.cropyield -= self.lobby_contribution
 
         if self.control_run:
             return

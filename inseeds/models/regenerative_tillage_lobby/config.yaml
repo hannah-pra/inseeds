@@ -30,6 +30,7 @@ output:
         - "count_1"
         - "majority"
         - "agreement"
+        - "contributed_yield"
         - "farmer_count"
 
 # Define how copan_core_data table file should be written
