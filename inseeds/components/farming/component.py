@@ -148,20 +148,36 @@ class Component(base.Component):
     def update(self, t):
         super().update(t)
 
-        # Update farmers
+        # Reset subsidies and budget at the start of each year
+        self.world.shared_subsidy_budget = 0.0
+        for farmer in self.world.farmers:
+            farmer.received_subsidy = 0.0
+
+        # Calculate world total crop yield for shared budget calculation
+        if self.world.farmers:
+            world_total_crop_yield = sum(farmer.cropyield for farmer in self.world.farmers)
+        else:
+            world_total_crop_yield = 0.0
+        
+        # Calculate shared subsidy budget (40% of world total crop yield)
+        budget_value = world_total_crop_yield * 0.4
+        # Ensure it's a scalar value
+        if hasattr(budget_value, 'item'):
+            budget_value = budget_value.item()
+        elif hasattr(budget_value, 'values'):
+            budget_value = budget_value.values.item()
+        
+        self.world.shared_subsidy_budget = budget_value
+        
+        # Distribute subsidies to farmers proportionally to their crop land area
+        self.distribute_subsidies_to_farmers()
+
+        # Update farmers (after they receive subsidies)
         farmers_sorted = sorted(
             self.world.farmers, key=lambda farmer: farmer.avg_hdate
         )
         for farmer in farmers_sorted:
             farmer.update(t)
-
-        # Update decision makers
-        decision_makers_sorted = sorted(
-            self.world.decision_makers, 
-            key=lambda dm: dm.decision_maker_id
-        )
-        for decision_maker in decision_makers_sorted:
-            decision_maker.update(t)
 
         # Update lobby groups
         lobby_groups_sorted = sorted(
@@ -170,3 +186,44 @@ class Component(base.Component):
         )
         for lobby_group in lobby_groups_sorted:
             lobby_group.update(t)
+
+    def distribute_subsidies_to_farmers(self):
+        """Distribute the shared subsidy budget to farmers proportionally to their crop land area."""
+        if not self.world.farmers or self.world.shared_subsidy_budget <= 0:
+            return
+            
+        # Calculate total crop land area across all farmers
+        total_crop_area = 0.0
+        for farmer in self.world.farmers:
+            area = farmer.cell.area
+            # Convert xarray to scalar if needed
+            if hasattr(area, 'item'):
+                area = area.item()
+            elif hasattr(area, 'values'):
+                area = area.values.item()
+            total_crop_area += area
+            
+        if total_crop_area <= 0:
+            return
+            
+        # Distribute subsidies proportionally
+        for farmer in self.world.farmers:
+            # Calculate farmer's share based on their crop land area
+            area = farmer.cell.area
+            # Convert xarray to scalar if needed
+            if hasattr(area, 'item'):
+                area = area.item()
+            elif hasattr(area, 'values'):
+                area = area.values.item()
+                
+            farmer_share = area / total_crop_area
+            subsidy_amount = self.world.shared_subsidy_budget * farmer_share
+            
+            # Store the subsidy amount for output (optional)
+            farmer.received_subsidy = subsidy_amount
+        
+ 
+        
+
+
+

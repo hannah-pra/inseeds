@@ -64,6 +64,11 @@ class Farmer(tillage.Farmer):
             "attitude based on observation of yield and\
                                              soilC of neighboring land",
         ),
+        received_subsidy=Variable(
+            "received subsidy",
+            "subsidy amount received from shared budget",
+            unit=DAU.gC_per_m2,
+        ),
     )
 
 
@@ -85,7 +90,7 @@ class LobbyGroup(farming.LobbyGroup):
         lobby_group_id=Variable("Lobby Group ID", "unique identifier for lobby group"),
         aft_type=Variable("AFT Type", "agent functional type this lobby group represents"),
         belief_value=Variable("Belief Value", "lobby group's belief about the system (-1.0 to 1.0)"),
-        
+
         count_0=Variable(
             "count practice 0",
             "number of farmers with practice 0 (conservation tillage)",
@@ -110,11 +115,6 @@ class LobbyGroup(farming.LobbyGroup):
         farmer_count=Variable("Farmer Count", "number of farmers in this lobby group"),
     )
 
-    @property
-    def farmer_count(self):
-        """Get the number of farmers in this lobby group."""
-        return len(self.farmers)
-
 
 class Cell(lpjml.Cell, farming.Cell):
     """Cell entity type."""
@@ -124,6 +124,13 @@ class Cell(lpjml.Cell, farming.Cell):
 
 class World(lpjml.World, farming.World):
     """World entity type."""
+
+    output_variables = base.Output(
+        shared_subsidy_budget=Variable(
+            "Shared Subsidy Budget",
+            "total shared budget available for subsidies (40% of world average crop yield)"
+        )
+    )
 
     pass
 

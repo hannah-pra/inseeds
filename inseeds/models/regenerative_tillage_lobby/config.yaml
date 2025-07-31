@@ -17,6 +17,7 @@ output:
         - "attitude_social_learning"
         - "soilc"
         - "cropyield"
+        - "received_subsidy"
     decisionmaker:
         - "decision_maker_id"
         - "belief_value"
@@ -32,6 +33,9 @@ output:
         - "agreement"
         - "contributed_yield"
         - "farmer_count"
+    world:
+        - "shared_subsidy_budget"
+
 
 # Define how copan_core_data table file should be written
 output_settings:

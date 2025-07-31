@@ -12,16 +12,19 @@ import numpy as np
 import pandas as pd
 
 import inseeds.components.base as base
+from pycopancore.data_model.variable import Variable
 
 
 class DecisionMaker(base.Individual):
-    """Decision Maker entity type class.
+    """Decision Maker entity type."""
     
-    This agent operates at the world level and has access to all cells
-    in the world rather than being tied to individual cells. 
-    #TODO: change this to world regions once we have them
-    """
-
+    output_variables = base.Output(
+        decision_maker_id=Variable("Decision Maker ID", "unique identifier for decision maker"),
+        belief_value=Variable("Belief Value", "decision maker's belief about the system (-1.0 to 1.0)"),
+        world_average_cropyield=Variable("World Average Crop Yield", "average crop yield across all cells"),
+        world_average_soilc=Variable("World Average Soil C", "average soil carbon across all cells"),
+    )
+    
     # standard methods:
     def __init__(self, world=None, model=None, **kwargs):
         """Initialize an instance of DecisionMaker."""
@@ -215,9 +218,4 @@ class DecisionMaker(base.Individual):
         else:
             print(f"DEBUG: config has no coupled_config or output")
         
-        return []
-
-    def update(self, t):
-        """Update the decision maker."""
-        # Basic update - can be extended later
-        pass 
+        return [] 

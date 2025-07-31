@@ -13,6 +13,7 @@ from enum import Enum
 
 import pycopancore.model_components.base as core
 import inseeds.components.base as base
+from pycopancore.data_model.variable import Variable
 
 
 class AFT(Enum):
@@ -56,6 +57,9 @@ class Farmer(core.Individual, base.Individual):
         
         # Initialize lobby contribution
         self.lobby_contribution = 0.0
+        
+        # Initialize received subsidy
+        self.received_subsidy = 0.0
 
     def init_aft(self):
         """Initialize the AFT of the agent."""
@@ -170,7 +174,7 @@ class Farmer(core.Individual, base.Individual):
 
         # Calculate and deduct lobby group contribution (10% of crop yield)
         if not self.control_run:
-            self.lobby_contribution = self.cropyield * 0.1
+            self.lobby_contribution = self.cropyield * 0.05
             self.cropyield -= self.lobby_contribution
 
         if self.control_run:

@@ -1,10 +1,18 @@
 """The inseeds_farmer_mnagement.world class."""
 
 import inseeds.components.base as base
+from pycopancore.data_model.variable import Variable
 
 
 class World(base.World):
     """World entity type mixin class."""
+    
+    output_variables = base.Output(
+        shared_subsidy_budget=Variable(
+            "Shared Subsidy Budget",
+            "total shared budget available for subsidies (40% of world average crop yield)"
+        )
+    )
 
     def __init__(self, **kwargs):
         """Initialize an instance of World."""
@@ -64,3 +72,41 @@ class World(base.World):
             if lobby_group.__class__.__name__ == "LobbyGroup"  # noqa
         }
         return lobby_groups
+
+    @property
+    def shared_subsidy_budget(self):
+        """Return the current shared subsidy budget."""
+        return getattr(self, '_shared_subsidy_budget', 0.0)
+    
+    @shared_subsidy_budget.setter
+    def shared_subsidy_budget(self, value):
+        """Set the shared subsidy budget."""
+        self._shared_subsidy_budget = value
+    
+    def get_defined_outputs(self):
+        """Get the list of defined output variables for this entity."""
+        if not hasattr(self, 'model') or self.model is None:
+            return []
+        
+        # Try to access config through the model (Component)
+        if hasattr(self.model, 'config'):
+            config = self.model.config
+        else:
+            return []
+            
+        # Check if the output variables are defined for this entity type
+        entity_name = self.__class__.__name__.lower()
+        
+        if hasattr(config, 'coupled_config') and hasattr(config.coupled_config, 'output'):
+            output_dict = config.coupled_config.output.to_dict()
+            if entity_name in output_dict:
+                result = [
+                    var
+                    for var in self.__class__.output_variables.names
+                    if var in output_dict[entity_name]
+                ]
+                return result
+        
+        return []
+    
+    

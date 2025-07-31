@@ -43,6 +43,10 @@ class LobbyGroup(core.Group):
             "contributed crop yield",
             "total crop yield contributed by all farmers in this lobby group (10% each)",
         ),
+        farmer_count=Variable(
+            "Farmer Count",
+            "number of farmers in this lobby group",
+        ),
     )
 
     # standard methods:
@@ -88,6 +92,9 @@ class LobbyGroup(core.Group):
         
         # Initialize contributed yield
         self.contributed_yield = 0.0
+        
+        # Initialize farmer count
+        self.farmer_count = 0
 
     def init_world_attributes(self):
         """Initialize world-dependent attributes when world is available."""
@@ -112,10 +119,6 @@ class LobbyGroup(core.Group):
         """Get all farmers in this lobby group."""
         return self.farmers
 
-    def get_farmer_count(self):
-        """Get the number of farmers in this lobby group."""
-        return len(self.farmers)
-
     def update_farmers(self):
         """Update the farmer list by checking all farmers in the world."""
         if not hasattr(self, 'world') or self.world is None:
@@ -126,9 +129,9 @@ class LobbyGroup(core.Group):
         
         # Add farmers that match this AFT type
         for farmer in self.world.farmers:
-            if farmer.aft == self.aft_type:
+            if farmer.aft.value == self.aft_type.value:
                 self.farmers.append(farmer)
-
+        
     @property
     def output_table(self):
         """Override output_table to handle world-level lobby groups."""
@@ -244,6 +247,9 @@ class LobbyGroup(core.Group):
         """Update the lobby group."""
         # Update farmer list
         self.update_farmers()
+        
+        # Set farmer count
+        self.farmer_count = len(self.farmers)
         
         # Update agreement based on farmers' practices
         if not self.farmers:
