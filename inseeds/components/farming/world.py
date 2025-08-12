@@ -11,12 +11,47 @@ class World(base.World):
         shared_subsidy_budget=Variable(
             "Shared Subsidy Budget",
             "total shared budget available for subsidies (40% of world average crop yield)"
+        ),
+        subsidy_plan=Variable(
+            "Subsidy Plan",
+            "subsidy distribution plan: -5 (land-based only) to 5 (practice-based only)"
+        ),
+        land_based_subsidies=Variable(
+            "Land Based Subsidies",
+            "total subsidies distributed based on land area"
+        ),
+        practice_based_subsidies=Variable(
+            "Practice Based Subsidies",
+            "total subsidies distributed based on conservation practice"
         )
     )
 
     def __init__(self, **kwargs):
         """Initialize an instance of World."""
         super().__init__(**kwargs)
+        
+        # Initialize subsidy plan from model config or default to 0
+        # The model config is passed via kwargs when World is created
+        if 'model' in kwargs and hasattr(kwargs['model'], 'config'):
+            # Try to get subsidy_plan from the coupled_config
+            try:
+                if hasattr(kwargs['model'].config, 'coupled_config'):
+                    config = kwargs['model'].config.coupled_config
+                    if hasattr(config, 'subsidy_plan'):
+                        self.subsidy_plan = config.subsidy_plan
+                        print(f"DEBUG: Set subsidy_plan from coupled_config: {self.subsidy_plan}")
+                    else:
+                        self.subsidy_plan = 0.0
+                        print("DEBUG: No subsidy_plan in coupled_config, using default: 0.0")
+                else:
+                    self.subsidy_plan = 0.0
+                    print("DEBUG: No coupled_config, using default subsidy_plan: 0.0")
+            except Exception as e:
+                print(f"DEBUG: Error accessing config: {e}")
+                self.subsidy_plan = 0.0
+        else:
+            self.subsidy_plan = 0.0
+            print("DEBUG: No model config, using default subsidy_plan: 0.0")
         
         # Initialize networks for social interactions
         self.init_networks()
@@ -82,6 +117,18 @@ class World(base.World):
     def shared_subsidy_budget(self, value):
         """Set the shared subsidy budget."""
         self._shared_subsidy_budget = value
+    
+    @property
+    def subsidy_plan(self):
+        """Return the current subsidy plan value."""
+        return getattr(self, '_subsidy_plan', 0.0)
+    
+    @subsidy_plan.setter
+    def subsidy_plan(self, value):
+        """Set the subsidy plan value (-5 to 5)."""
+        # Clamp value to valid range
+        clamped_value = max(-5.0, min(5.0, float(value)))
+        self._subsidy_plan = clamped_value
     
     def get_defined_outputs(self):
         """Get the list of defined output variables for this entity."""

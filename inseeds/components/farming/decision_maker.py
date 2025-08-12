@@ -20,7 +20,7 @@ class DecisionMaker(base.Individual):
     
     output_variables = base.Output(
         decision_maker_id=Variable("Decision Maker ID", "unique identifier for decision maker"),
-        belief_value=Variable("Belief Value", "decision maker's belief about the system (-1.0 to 1.0)"),
+        belief_value=Variable("Belief Value", "decision maker's belief about subsidies (-5.0 to 5.0, negative=favor land-based, positive=favor practice-based)"),
         world_average_cropyield=Variable("World Average Crop Yield", "average crop yield across all cells"),
         world_average_soilc=Variable("World Average Soil C", "average soil carbon across all cells"),
     )
@@ -48,7 +48,10 @@ class DecisionMaker(base.Individual):
             self.all_cells = None
         
         # Belief value - represents the decision maker's belief about the system
-        self.belief_value = 0  # Default neutral belief (-1.0 to 1.0)
+        # Random belief between -5 and 5, representing their stance on subsidies
+        # Negative: favors land-based subsidies, Positive: favors practice-based subsidies
+        self.belief_value = np.random.uniform(-5.0, 5.0)
+        print(f"DEBUG: Decision maker {self.decision_maker_id} initialized with belief: {self.belief_value:.2f}")
 
     def init_world_attributes(self):
         """Initialize world-dependent attributes when world is available."""

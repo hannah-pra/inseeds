@@ -129,6 +129,18 @@ class World(lpjml.World, farming.World):
         shared_subsidy_budget=Variable(
             "Shared Subsidy Budget",
             "total shared budget available for subsidies (40% of world average crop yield)"
+        ),
+        subsidy_plan=Variable(
+            "Subsidy Plan",
+            "subsidy distribution plan: -5 (land-based only) to 5 (practice-based only)"
+        ),
+        land_based_subsidies=Variable(
+            "Land Based Subsidies",
+            "total subsidies distributed based on land area"
+        ),
+        practice_based_subsidies=Variable(
+            "Practice Based Subsidies",
+            "total subsidies distributed based on conservation practice"
         )
     )
 

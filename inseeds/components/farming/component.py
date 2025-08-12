@@ -148,8 +148,13 @@ class Component(base.Component):
     def update(self, t):
         super().update(t)
 
+        # Decision makers vote on subsidy plan changes
+        self.update_subsidy_plan_vote()
+
         # Reset subsidies and budget at the start of each year
         self.world.shared_subsidy_budget = 0.0
+        self.world.land_based_subsidies = 0.0
+        self.world.practice_based_subsidies = 0.0
         for farmer in self.world.farmers:
             farmer.received_subsidy = 0.0
 
@@ -169,7 +174,7 @@ class Component(base.Component):
         
         self.world.shared_subsidy_budget = budget_value
         
-        # Distribute subsidies to farmers proportionally to their crop land area
+        # Distribute subsidies to farmers using hybrid system
         self.distribute_subsidies_to_farmers()
 
         # Update farmers (after they receive subsidies)
@@ -187,11 +192,85 @@ class Component(base.Component):
         for lobby_group in lobby_groups_sorted:
             lobby_group.update(t)
 
+    def update_subsidy_plan_vote(self):
+        """Update subsidy plan based on decision maker majority vote.
+        
+        Decision makers vote based on their belief values:
+        - Negative beliefs (-5 to 0): Vote to decrease subsidy_plan (more land-based)
+        - Positive beliefs (0 to 5): Vote to increase subsidy_plan (more practice-based)
+        - Belief = 0: Indifferent (no vote)
+        
+        Maximum change per year: ±0.5
+        Ties result in no change
+        """
+        if not hasattr(self.world, 'decision_makers') or not self.world.decision_makers:
+            return
+            
+        current_plan = self.world.subsidy_plan
+        print(f"DEBUG: Current subsidy_plan: {current_plan}")
+        
+        # Count votes
+        decrease_votes = 0  # Negative beliefs
+        increase_votes = 0  # Positive beliefs
+        indifferent_votes = 0  # Belief = 0
+        
+        for dm in self.world.decision_makers:
+            belief = dm.belief_value
+            print(f"DEBUG: Decision maker {dm.decision_maker_id} has belief: {belief}")
+            
+            if belief < 0:
+                decrease_votes += 1
+                print(f"DEBUG: DM {dm.decision_maker_id} votes DECREASE (belief: {belief})")
+            elif belief > 0:
+                increase_votes += 1
+                print(f"DEBUG: DM {dm.decision_maker_id} votes INCREASE (belief: {belief})")
+            else:
+                indifferent_votes += 1
+                print(f"DEBUG: DM {dm.decision_maker_id} is INDIFFERENT (belief: {belief})")
+        
+        print(f"DEBUG: Vote count - Decrease: {decrease_votes}, Increase: {increase_votes}, Indifferent: {indifferent_votes}")
+        
+        # Determine outcome
+        if decrease_votes > increase_votes:
+            # Majority wants to decrease (more land-based subsidies)
+            new_plan = max(-5.0, current_plan - 0.5)
+            change = new_plan - current_plan
+            print(f"DEBUG: DECREASE wins. Changing subsidy_plan from {current_plan} to {new_plan} (change: {change})")
+            self.world.subsidy_plan = new_plan
+            
+        elif increase_votes > decrease_votes:
+            # Majority wants to increase (more practice-based subsidies)
+            new_plan = min(5.0, current_plan + 0.5)
+            change = new_plan - current_plan
+            print(f"DEBUG: INCREASE wins. Changing subsidy_plan from {current_plan} to {new_plan} (change: {change})")
+            self.world.subsidy_plan = new_plan
+            
+        else:
+            # Tie or no majority - no change
+            print(f"DEBUG: TIE or no majority. subsidy_plan stays at {current_plan}")
+            print(f"DEBUG: No change to subsidy_plan")
+
     def distribute_subsidies_to_farmers(self):
-        """Distribute the shared subsidy budget to farmers proportionally to their crop land area."""
+        """Distribute the shared subsidy budget to farmers using hybrid system.
+        
+        The subsidy_plan parameter controls the distribution:
+        -5: 100% land-based (proportional to crop land area)
+        -2.5: 75% land-based, 25% practice-based
+        0: 50% land-based, 50% practice-based
+        2.5: 25% land-based, 75% practice-based
+        5: 100% practice-based (only conservation tillage farmers)
+        """
         if not self.world.farmers or self.world.shared_subsidy_budget <= 0:
             return
             
+        # Get subsidy plan value (-5 to 5)
+        subsidy_plan = self.world.subsidy_plan
+        
+        # Calculate weights for land-based vs practice-based subsidies
+        # Convert from -5..5 range to 0..1 range for land-based weight
+        land_weight = (5.0 - subsidy_plan) / 10.0  # 1.0 at -5, 0.0 at 5
+        practice_weight = 1.0 - land_weight  # 0.0 at -5, 1.0 at 5
+        
         # Calculate total crop land area across all farmers
         total_crop_area = 0.0
         for farmer in self.world.farmers:
@@ -206,21 +285,47 @@ class Component(base.Component):
         if total_crop_area <= 0:
             return
             
-        # Distribute subsidies proportionally
+        # Count conservation tillage farmers (practice = 0)
+        conservation_farmers = [f for f in self.world.farmers if hasattr(f, 'tillage') and f.tillage == 0]
+        num_conservation = len(conservation_farmers)
+        
+        # Initialize subsidy tracking
+        total_land_subsidies = 0.0
+        total_practice_subsidies = 0.0
+        
+        # Distribute subsidies using hybrid system
         for farmer in self.world.farmers:
-            # Calculate farmer's share based on their crop land area
-            area = farmer.cell.area
-            # Convert xarray to scalar if needed
-            if hasattr(area, 'item'):
-                area = area.item()
-            elif hasattr(area, 'values'):
-                area = area.values.item()
-                
-            farmer_share = area / total_crop_area
-            subsidy_amount = self.world.shared_subsidy_budget * farmer_share
+            total_subsidy = 0.0
             
-            # Store the subsidy amount for output (optional)
-            farmer.received_subsidy = subsidy_amount
+            # Land-based subsidy component
+            if land_weight > 0:
+                area = farmer.cell.area
+                # Convert xarray to scalar if needed
+                if hasattr(area, 'item'):
+                    area = area.item()
+                elif hasattr(area, 'values'):
+                    area = area.values.item()
+                    
+                farmer_land_share = area / total_crop_area
+                land_subsidy = self.world.shared_subsidy_budget * land_weight * farmer_land_share
+                total_subsidy += land_subsidy
+                total_land_subsidies += land_subsidy
+            
+            # Practice-based subsidy component
+            if practice_weight > 0 and num_conservation > 0:
+                # Check if farmer practices conservation tillage
+                if hasattr(farmer, 'tillage') and farmer.tillage == 0:
+                    # Distribute practice-based subsidies equally among conservation farmers
+                    practice_subsidy = self.world.shared_subsidy_budget * practice_weight / num_conservation
+                    total_subsidy += practice_subsidy
+                    total_practice_subsidies += practice_subsidy
+            
+            # Store the total subsidy amount
+            farmer.received_subsidy = total_subsidy
+        
+        # Update world subsidy tracking
+        self.world.land_based_subsidies = total_land_subsidies
+        self.world.practice_based_subsidies = total_practice_subsidies
         
  
         

@@ -35,6 +35,9 @@ output:
         - "farmer_count"
     world:
         - "shared_subsidy_budget"
+        - "subsidy_plan"
+        - "land_based_subsidies"
+        - "practice_based_subsidies"
 
 
 # Define how copan_core_data table file should be written
@@ -50,6 +53,11 @@ coupling_map:
 control_run: False
 pioneer_share: 0.25
 num_decision_makers: 3
+
+# Subsidy policy configuration
+# subsidy_plan: -5 (100% land-based) to 5 (100% practice-based)
+# 0 = balanced (50% land, 50% practice)
+subsidy_plan: -5
 
 # Analogous to LPJmL pftpar, define the AFT parameters for the two different
 #   farmer types
