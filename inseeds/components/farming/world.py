@@ -14,7 +14,7 @@ class World(base.World):
         ),
         subsidy_plan=Variable(
             "Subsidy Plan",
-            "subsidy distribution plan: -5 (land-based only) to 5 (practice-based only)"
+            "subsidy distribution plan: -1 (land-based only) to 1 (practice-based only)"
         ),
         land_based_subsidies=Variable(
             "Land Based Subsidies",
@@ -125,9 +125,9 @@ class World(base.World):
     
     @subsidy_plan.setter
     def subsidy_plan(self, value):
-        """Set the subsidy plan value (-5 to 5)."""
+        """Set the subsidy plan value (-1 to 1)."""
         # Clamp value to valid range
-        clamped_value = max(-5.0, min(5.0, float(value)))
+        clamped_value = max(-1.0, min(1.0, float(value)))
         self._subsidy_plan = clamped_value
     
     def get_defined_outputs(self):

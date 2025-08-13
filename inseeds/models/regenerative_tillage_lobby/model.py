@@ -77,7 +77,7 @@ class DecisionMaker(farming.DecisionMaker):
 
     output_variables = base.Output(
         decision_maker_id=Variable("Decision Maker ID", "unique identifier for decision maker"),
-        belief_value=Variable("Belief Value", "decision maker's belief about the system (-1.0 to 1.0)"),
+        belief_value=Variable("Belief Value", "decision maker's belief about the system (-1.0 to 1.0, for voting on subsidy policy)"),
         world_average_cropyield=Variable("World Average Crop Yield", "average crop yield across all cells"),
         world_average_soilc=Variable("World Average Soil C", "average soil carbon across all cells"),
     )
@@ -89,7 +89,7 @@ class LobbyGroup(farming.LobbyGroup):
     output_variables = base.Output(
         lobby_group_id=Variable("Lobby Group ID", "unique identifier for lobby group"),
         aft_type=Variable("AFT Type", "agent functional type this lobby group represents"),
-        belief_value=Variable("Belief Value", "lobby group's belief about the system (-1.0 to 1.0)"),
+        belief_value=Variable("Belief Value", "lobby group's belief about the system (-1.0 to 1.0, based on agreement and practice preferences)"),
 
         count_0=Variable(
             "count practice 0",
@@ -110,7 +110,19 @@ class LobbyGroup(farming.LobbyGroup):
 
         contributed_yield=Variable(
             "contributed crop yield",
-            "total crop yield contributed by all farmers in this lobby group (10% each)",
+            "total crop yield contributed by all farmers in this lobby group (5% each)",
+        ),
+        usable_budget=Variable(
+            "usable budget",
+            "effective lobbying budget: agreement × contributed yield",
+        ),
+        lobby_attempts=Variable(
+            "lobby attempts per decision maker",
+            "number of lobby attempts made to each decision maker this year",
+        ),
+        successful_lobby_attempts=Variable(
+            "successful lobby attempts per decision maker",
+            "number of successful lobby attempts to each decision maker this year",
         ),
         farmer_count=Variable("Farmer Count", "number of farmers in this lobby group"),
     )

@@ -115,6 +115,9 @@ class Component(base.Component):
 
         print("Creating 2 lobby groups...")
 
+        # Get lobby group configuration
+        lobby_config = getattr(self.config.coupled_config, 'lobby_groups', None)
+        
         # Create two lobby groups - one for each AFT type
         traditionalist_group = lobby_group_class(
             world=self.world, 
@@ -122,6 +125,15 @@ class Component(base.Component):
             aft_type=AFT.traditionalist
         )
         traditionalist_group.init_world_attributes()
+        
+        # Set traditionalist lobby strategy and cost
+        if lobby_config is not None:
+            traditionalist_group.lobby_strategy = getattr(lobby_config, 'traditionalist_strategy', 0)
+            traditionalist_group.lobby_cost_per_attempt = getattr(lobby_config, 'lobby_cost_per_attempt', 10.0)
+        else:
+            traditionalist_group.lobby_strategy = 0
+            traditionalist_group.lobby_cost_per_attempt = 10.0
+        
         lobby_groups.append(traditionalist_group)
 
         pioneer_group = lobby_group_class(
@@ -130,6 +142,15 @@ class Component(base.Component):
             aft_type=AFT.pioneer
         )
         pioneer_group.init_world_attributes()
+        
+        # Set pioneer lobby strategy and cost
+        if lobby_config is not None:
+            pioneer_group.lobby_strategy = getattr(lobby_config, 'pioneer_strategy', 2)
+            pioneer_group.lobby_cost_per_attempt = getattr(lobby_config, 'lobby_cost_per_attempt', 10.0)
+        else:
+            pioneer_group.lobby_strategy = 2
+            pioneer_group.lobby_cost_per_attempt = 10.0
+        
         lobby_groups.append(pioneer_group)
         
         # Add lobby groups to the world's individuals list
@@ -191,16 +212,23 @@ class Component(base.Component):
         )
         for lobby_group in lobby_groups_sorted:
             lobby_group.update(t)
+        
+        # Conduct lobbying campaigns
+        self.conduct_lobbying_campaigns()
+        
+        # Update decision maker beliefs based on lobbying influence
+        for decision_maker in self.world.decision_makers:
+            decision_maker.update_belief_from_lobbying(self.world.lobby_groups)
 
     def update_subsidy_plan_vote(self):
         """Update subsidy plan based on decision maker majority vote.
         
         Decision makers vote based on their belief values:
-        - Negative beliefs (-5 to 0): Vote to decrease subsidy_plan (more land-based)
-        - Positive beliefs (0 to 5): Vote to increase subsidy_plan (more practice-based)
+        - Negative beliefs (-1.0 to 0): Vote to decrease subsidy_plan (more land-based)
+        - Positive beliefs (0 to 1.0): Vote to increase subsidy_plan (more practice-based)
         - Belief = 0: Indifferent (no vote)
         
-        Maximum change per year: ±0.5
+        Maximum change per year: ±0.1
         Ties result in no change
         """
         if not hasattr(self.world, 'decision_makers') or not self.world.decision_makers:
@@ -233,14 +261,14 @@ class Component(base.Component):
         # Determine outcome
         if decrease_votes > increase_votes:
             # Majority wants to decrease (more land-based subsidies)
-            new_plan = max(-5.0, current_plan - 0.5)
+            new_plan = max(-1.0, current_plan - 0.1)
             change = new_plan - current_plan
             print(f"DEBUG: DECREASE wins. Changing subsidy_plan from {current_plan} to {new_plan} (change: {change})")
             self.world.subsidy_plan = new_plan
             
         elif increase_votes > decrease_votes:
             # Majority wants to increase (more practice-based subsidies)
-            new_plan = min(5.0, current_plan + 0.5)
+            new_plan = min(1.0, current_plan + 0.1)
             change = new_plan - current_plan
             print(f"DEBUG: INCREASE wins. Changing subsidy_plan from {current_plan} to {new_plan} (change: {change})")
             self.world.subsidy_plan = new_plan
@@ -254,22 +282,22 @@ class Component(base.Component):
         """Distribute the shared subsidy budget to farmers using hybrid system.
         
         The subsidy_plan parameter controls the distribution:
-        -5: 100% land-based (proportional to crop land area)
-        -2.5: 75% land-based, 25% practice-based
+        -1: 100% land-based (proportional to crop land area)
+        -0.5: 75% land-based, 25% practice-based
         0: 50% land-based, 50% practice-based
-        2.5: 25% land-based, 75% practice-based
-        5: 100% practice-based (only conservation tillage farmers)
+        0.5: 25% land-based, 75% practice-based
+        1: 100% practice-based (only conservation tillage farmers)
         """
         if not self.world.farmers or self.world.shared_subsidy_budget <= 0:
             return
             
-        # Get subsidy plan value (-5 to 5)
+        # Get subsidy plan value (-1 to 1)
         subsidy_plan = self.world.subsidy_plan
         
         # Calculate weights for land-based vs practice-based subsidies
-        # Convert from -5..5 range to 0..1 range for land-based weight
-        land_weight = (5.0 - subsidy_plan) / 10.0  # 1.0 at -5, 0.0 at 5
-        practice_weight = 1.0 - land_weight  # 0.0 at -5, 1.0 at 5
+        # Convert from -1..1 range to 0..1 range for land-based weight
+        land_weight = (1.0 - subsidy_plan) / 2.0  # 1.0 at -1, 0.0 at 1
+        practice_weight = 1.0 - land_weight  # 0.0 at -1, 1.0 at 1
         
         # Calculate total crop land area across all farmers
         total_crop_area = 0.0
@@ -326,9 +354,14 @@ class Component(base.Component):
         # Update world subsidy tracking
         self.world.land_based_subsidies = total_land_subsidies
         self.world.practice_based_subsidies = total_practice_subsidies
+    
+    def conduct_lobbying_campaigns(self):
+        """Conduct lobbying campaigns for all lobby groups."""
+        if not hasattr(self.world, 'lobby_groups') or not hasattr(self.world, 'decision_makers'):
+            return
         
- 
-        
-
-
-
+        # Conduct lobbying campaigns for each group
+        for lobby_group in self.world.lobby_groups:
+            # Conduct lobbying campaign (includes relationship updates)
+            lobby_group.conduct_lobbying_campaign(self.world.decision_makers)
+    

@@ -41,7 +41,19 @@ class LobbyGroup(core.Group):
         ),
         contributed_yield=Variable(
             "contributed crop yield",
-            "total crop yield contributed by all farmers in this lobby group (10% each)",
+            "total crop yield contributed by all farmers in this lobby group (5% each)",
+        ),
+        usable_budget=Variable(
+            "usable budget",
+            "effective lobbying budget: agreement × contributed yield",
+        ),
+        lobby_attempts=Variable(
+            "lobby attempts",
+            "number of lobby attempts made this year",
+        ),
+        successful_lobby_attempts=Variable(
+            "successful lobby attempts",
+            "number of successful lobby attempts this year",
         ),
         farmer_count=Variable(
             "Farmer Count",
@@ -86,12 +98,26 @@ class LobbyGroup(core.Group):
         self.agreement = 1.0  # Default to full agreement if no farmers
         
         # Initialize count variables
+        
+        # Initialize lobbying-related attributes
+        self.lobby_strategy = 0  # Default to traditionalist strategy
+        self.lobby_cost_per_attempt = 1.0  # Default cost
+        self.decision_maker_relationships = {}  # Track relationships with DMs
+        self.lobby_attempts = {}  # Track attempts per DM
+        self.successful_lobby_attempts = {}  # Track successes per DM
+        self.consecutive_failures = 0  # Track consecutive failures
+        
+        # Set lobby strategy and cost from configuration if available
+        self._configure_lobbying()
         self.count_0 = 0
         self.count_1 = 0
         self.majority = 0
         
         # Initialize contributed yield
         self.contributed_yield = 0.0
+        
+        # Initialize usable budget
+        self.usable_budget = 0.0
         
         # Initialize farmer count
         self.farmer_count = 0
@@ -100,6 +126,9 @@ class LobbyGroup(core.Group):
         """Initialize world-dependent attributes when world is available."""
         if hasattr(self, 'world') and self.world is not None:
             self.all_cells = self.world.cells
+            
+        # Initialize relationship tracking with decision makers
+        self.decision_maker_relationships = {}  # {decision_maker_id: relationship_value}
 
     def add_farmer(self, farmer):
         """Add a farmer to this lobby group if they match the AFT type."""
@@ -155,7 +184,7 @@ class LobbyGroup(core.Group):
                         )
                         for var in variables
                     ],
-                    "value": [getattr(self, var, None) for var in variables],
+                    "value": [self.get_output_value(var) for var in variables],
                     "unit": [
                         getattr(
                             getattr(
@@ -274,9 +303,282 @@ class LobbyGroup(core.Group):
                 self.majority = max(self.count_0, self.count_1)
                 self.agreement = self.majority / len(practices)
         
-        # Calculate contributed yield from all farmers (10% each)
+        # Calculate contributed yield from all farmers (5% each)
         self.contributed_yield = 0.0
         for farmer in self.farmers:
             if hasattr(farmer, 'lobby_contribution'):
-                # Each farmer contributes 10% of their crop yield
+                # Each farmer contributes 5% of their crop yield
                 self.contributed_yield += farmer.lobby_contribution
+        
+        # Calculate usable budget: agreement × contributed yield
+        self.usable_budget = self.agreement * self.contributed_yield
+        
+        # Update belief value based on agreement and practice preferences
+        self.update_belief_value()
+    
+    def update_belief_value(self):
+        """Update the lobby group's belief value based on agreement and practice preferences.
+        
+        Belief value ranges from -1.0 to 1.0:
+        - -1.0: All farmers agree on conventional practices (tillage = 1)
+        - 0.0: Half/half split or no clear majority
+        - 1.0: All farmers agree on conservation practices (tillage = 0)
+        
+        The belief value is weighted by the agreement level:
+        - High agreement = stronger belief (closer to -1 or 1)
+        - Low agreement = weaker belief (closer to 0)
+        """
+        if not self.farmers:
+            # No farmers - neutral belief
+            self.belief_value = 0.0
+            return
+        
+        # Calculate the proportion of conservation farmers (practice 0)
+        total_farmers = len(self.farmers)
+        conservation_farmers = self.count_0
+        conventional_farmers = self.count_1
+        
+        if total_farmers == 0:
+            self.belief_value = 0.0
+            return
+        
+        # Calculate the proportion of conservation vs conventional
+        conservation_proportion = conservation_farmers / total_farmers
+        conventional_proportion = conventional_farmers / total_farmers
+        
+        # Calculate base belief value:
+        # -1.0 if all conventional, +1.0 if all conservation
+        base_belief = (conservation_proportion - conventional_proportion)
+        
+        # Weight by agreement level to get final belief value
+        # High agreement = stronger belief, low agreement = weaker belief
+        self.belief_value = base_belief * self.agreement
+        
+        # Ensure belief value stays within [-1.0, 1.0] range
+        self.belief_value = max(-1.0, min(1.0, self.belief_value))
+    
+    def get_total_lobby_attempts(self):
+        """Get total lobby attempts across all decision makers."""
+        return sum(self.lobby_attempts.values()) if self.lobby_attempts else 0
+    
+    def get_total_successful_attempts(self):
+        """Get total successful lobby attempts across all decision makers."""
+        return sum(self.successful_lobby_attempts.values()) if self.successful_lobby_attempts else 0
+    
+    def get_output_value(self, var_name):
+        """Get the appropriate output value for a variable, handling special cases."""
+        if var_name == 'lobby_attempts':
+            return self.get_total_lobby_attempts()
+        elif var_name == 'successful_lobby_attempts':
+            return self.get_total_successful_attempts()
+        else:
+            return getattr(self, var_name, None)
+    
+    def get_target_decision_makers(self, decision_makers):
+        """Get list of decision makers to target based on lobby strategy.
+        
+        Strategy 0: Target similar beliefs (highest success probability)
+        Strategy 1: Target swing voters (beliefs around 0)
+        Strategy 2: Target opposite beliefs (high risk, high gain)
+        """
+        if not decision_makers:
+            return []
+        
+        # Convert to list if it's a set
+        dm_list = list(decision_makers)
+        
+        if self.lobby_strategy == 0:
+            # Target similar beliefs - sort by belief difference (ascending)
+            dm_list.sort(key=lambda dm: abs(dm.belief_value - self.belief_value))
+        elif self.lobby_strategy == 1:
+            # Target swing voters - sort by absolute belief value (ascending)
+            dm_list.sort(key=lambda dm: abs(dm.belief_value))
+        elif self.lobby_strategy == 2:
+            # Target opposite beliefs - sort by belief difference (descending)
+            dm_list.sort(key=lambda dm: abs(dm.belief_value - self.belief_value), reverse=True)
+        
+        return dm_list
+    
+    def attempt_lobby(self, decision_maker):
+        """Attempt to lobby a decision maker.
+        
+        Returns True if successful, False otherwise.
+        """
+        # Get or initialize relationship value
+        if decision_maker.decision_maker_id not in self.decision_maker_relationships:
+            self.decision_maker_relationships[decision_maker.decision_maker_id] = 0.5
+        
+        relationship_value = self.decision_maker_relationships[decision_maker.decision_maker_id]
+        
+        # Calculate belief difference
+        belief_difference = abs(self.belief_value - decision_maker.belief_value)
+        
+        # Calculate success probability
+        success_probability = relationship_value * (1.0 / (1.0 + belief_difference))
+        
+        # Determine success
+        import random
+        success = random.random() < success_probability
+        
+        # Update relationship value
+        if success:
+            # Successful attempt increases relationship
+            self.decision_maker_relationships[decision_maker.decision_maker_id] = min(
+                1.0, 
+                relationship_value + 0.05
+            )
+        else:
+            # Failed attempt doesn't change relationship immediately
+            pass
+        
+        return success
+    
+    def conduct_lobbying_campaign(self, decision_makers):
+        """Conduct lobbying campaign against available decision makers."""
+        if not decision_makers or self.usable_budget <= 0:
+            # No budget or decision makers - update relationships for all DMs
+            self._update_all_relationships(decision_makers)
+            return
+        
+        # Calculate number of lobby attempts based on budget
+        max_attempts = int(self.usable_budget / self.lobby_cost_per_attempt)
+        
+        if max_attempts <= 0:
+            # No attempts possible - update relationships for all DMs
+            self._update_all_relationships(decision_makers)
+            return
+        
+        # Get target decision makers based on strategy
+        target_dms = self.get_target_decision_makers(decision_makers)
+        
+        # Reset counters for this year
+        self.lobby_attempts = {}
+        self.successful_lobby_attempts = {}
+        
+        # Initialize counters for each decision maker
+        for dm in decision_makers:
+            self.lobby_attempts[dm.decision_maker_id] = 0
+            self.successful_lobby_attempts[dm.decision_maker_id] = 0
+        
+        # Make lobby attempts
+        for i, decision_maker in enumerate(target_dms):
+            if i >= max_attempts:
+                break
+                
+            self.lobby_attempts[decision_maker.decision_maker_id] += 1
+            
+            if self.attempt_lobby(decision_maker):
+                self.successful_lobby_attempts[decision_maker.decision_maker_id] += 1
+        
+        # Apply strategic adjustments based on campaign results
+        self._apply_strategic_adjustments()
+        
+        # Update relationships after lobbying campaign
+        self._update_all_relationships(decision_makers)
+    
+    def _update_all_relationships(self, decision_makers):
+        """Update relationship values for all decision makers after lobbying campaign."""
+        for dm in decision_makers:
+            dm_id = dm.decision_maker_id
+            
+            # Initialize relationship if it doesn't exist
+            if dm_id not in self.decision_maker_relationships:
+                self.decision_maker_relationships[dm_id] = 0.5
+            
+            # Check if this decision maker was lobbied this year
+            was_lobbied = self.lobby_attempts.get(dm_id, 0) > 0
+            
+            if was_lobbied:
+                # Relationship was already updated during lobbying attempts
+                # No additional change needed
+                pass
+            else:
+                # No lobbying this year - decrease relationship slightly
+                current_relationship = self.decision_maker_relationships[dm_id]
+                self.decision_maker_relationships[dm_id] = max(
+                    0.0, 
+                    current_relationship - 0.02  # Smaller decrease for no lobbying
+                )
+    
+    def _apply_strategic_adjustments(self):
+        """Apply strategic adjustments based on lobbying campaign results."""
+        total_attempts = sum(self.lobby_attempts.values())
+        total_successes = sum(self.successful_lobby_attempts.values())
+        
+        if total_attempts == 0:
+            return
+        
+        success_rate = total_successes / total_attempts
+        
+        # Adjust strategy based on success rate
+        if success_rate < 0.2:  # Very low success
+            # Consider changing strategy if consistently failing
+            if hasattr(self, 'consecutive_failures'):
+                self.consecutive_failures += 1
+            else:
+                self.consecutive_failures = 1
+            
+            if self.consecutive_failures >= 3:
+                # Switch to more conservative strategy
+                if self.lobby_strategy == 2:  # Pioneer strategy
+                    self.lobby_strategy = 1  # Switch to swing voters
+                elif self.lobby_strategy == 1:  # Swing voters
+                    self.lobby_strategy = 0  # Switch to similar beliefs
+                self.consecutive_failures = 0
+        else:
+            # Reset failure counter on success
+            if hasattr(self, 'consecutive_failures'):
+                self.consecutive_failures = 0
+    
+    def get_lobbying_statistics(self):
+        """Get comprehensive lobbying statistics for this lobby group."""
+        total_attempts = sum(self.lobby_attempts.values())
+        total_successes = sum(self.successful_lobby_attempts.values())
+        
+        stats = {
+            'total_attempts': total_attempts,
+            'total_successes': total_successes,
+            'success_rate': total_successes / total_attempts if total_attempts > 0 else 0.0,
+            'strategy': self.lobby_strategy,
+            'strategy_name': self._get_strategy_name(),
+            'usable_budget': self.usable_budget,
+            'contributed_yield': self.contributed_yield,
+            'agreement': self.agreement,
+            'belief_value': self.belief_value,
+            'consecutive_failures': getattr(self, 'consecutive_failures', 0)
+        }
+        
+        return stats
+    
+    def _get_strategy_name(self):
+        """Get human-readable name for the current lobbying strategy."""
+        strategy_names = {
+            0: "Traditionalist (Target Similar Beliefs)",
+            1: "Swing Voter (Target Neutral Beliefs)", 
+            2: "Pioneer (Target Opposite Beliefs)"
+        }
+        return strategy_names.get(self.lobby_strategy, "Unknown")
+    
+    def _configure_lobbying(self):
+        """Configure lobbying strategy and cost from model configuration."""
+        if hasattr(self, 'model') and self.model is not None:
+            if hasattr(self.model, 'config') and self.model.config is not None:
+                if hasattr(self.model.config, 'coupled_config') and self.model.config.coupled_config is not None:
+                    coupled_config = self.model.config.coupled_config
+                    
+                    # Set lobby strategy based on AFT type
+                    if hasattr(coupled_config, 'lobby_groups') and coupled_config.lobby_groups is not None:
+                        lobby_config = coupled_config.lobby_groups
+                        
+                        if self.aft_type.value == 'AFT.traditionalist':
+                            self.lobby_strategy = getattr(lobby_config, 'traditionalist_strategy', 0)
+                        elif self.aft_type.value == 'AFT.pioneer':
+                            self.lobby_strategy = getattr(lobby_config, 'pioneer_strategy', 2)
+                        
+                        # Set lobby cost per attempt
+                        self.lobby_cost_per_attempt = getattr(lobby_config, 'lobby_cost_per_attempt', 1.0)
+    
+    def update_relationships(self):
+        """Legacy method - now handled within conduct_lobbying_campaign."""
+        # This method is kept for backward compatibility but is no longer used
+        pass

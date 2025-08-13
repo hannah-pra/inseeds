@@ -20,7 +20,7 @@ class DecisionMaker(base.Individual):
     
     output_variables = base.Output(
         decision_maker_id=Variable("Decision Maker ID", "unique identifier for decision maker"),
-        belief_value=Variable("Belief Value", "decision maker's belief about subsidies (-5.0 to 5.0, negative=favor land-based, positive=favor practice-based)"),
+        belief_value=Variable("Belief Value", "decision maker's belief about subsidies (-1.0 to 1.0, negative=favor land-based, positive=favor practice-based)"),
         world_average_cropyield=Variable("World Average Crop Yield", "average crop yield across all cells"),
         world_average_soilc=Variable("World Average Soil C", "average soil carbon across all cells"),
     )
@@ -48,15 +48,57 @@ class DecisionMaker(base.Individual):
             self.all_cells = None
         
         # Belief value - represents the decision maker's belief about the system
-        # Random belief between -5 and 5, representing their stance on subsidies
+        # Random belief between -1 and 1, representing their stance on subsidies
         # Negative: favors land-based subsidies, Positive: favors practice-based subsidies
-        self.belief_value = np.random.uniform(-5.0, 5.0)
+        self.belief_value = np.random.uniform(-1.0, 1.0)
         print(f"DEBUG: Decision maker {self.decision_maker_id} initialized with belief: {self.belief_value:.2f}")
 
     def init_world_attributes(self):
         """Initialize world-dependent attributes when world is available."""
         if hasattr(self, 'world') and self.world is not None:
             self.all_cells = self.world.cells
+    
+    def update_belief_from_lobbying(self, lobby_groups):
+        """Update belief value based on successful lobbying attempts from lobby groups.
+        
+        Args:
+            lobby_groups: List of lobby groups that may have lobbied this decision maker
+        """
+        if not lobby_groups:
+            return
+        
+        # Calculate influence from conservation and conventional lobby groups
+        conservation_influence = 0
+        conventional_influence = 0
+        
+        for lobby_group in lobby_groups:
+            # Get successful attempts to this specific decision maker
+            dm_id = self.decision_maker_id
+            successful_attempts = lobby_group.successful_lobby_attempts.get(dm_id, 0)
+            
+            if successful_attempts > 0:
+                if lobby_group.belief_value > 0:
+                    # Conservation lobby group
+                    conservation_influence += successful_attempts
+                elif lobby_group.belief_value < 0:
+                    # Conventional lobby group
+                    conventional_influence += successful_attempts
+        
+        # Update belief based on relative influence
+        total_influence = conservation_influence + conventional_influence
+        if total_influence > 0:
+            # Calculate belief change: (conservation - conventional) / total
+            belief_change = (conservation_influence - conventional_influence) / total_influence
+            
+            # Apply belief change (with some damping to prevent extreme values)
+            damping_factor = 0.1  # Reduce the impact of lobbying
+            new_belief = self.belief_value + (belief_change * damping_factor)
+            
+            # Clamp to valid range
+            self.belief_value = max(-1.0, min(1.0, new_belief))
+            
+            print(f"DEBUG: DM {self.decision_maker_id} belief updated: "
+                  f"{self.belief_value:.3f} (change: {belief_change:.3f})")
 
     @property
     def output_table(self):

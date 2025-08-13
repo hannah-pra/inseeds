@@ -32,6 +32,9 @@ output:
         - "majority"
         - "agreement"
         - "contributed_yield"
+        - "usable_budget"
+        - "lobby_attempts"
+        - "successful_lobby_attempts"
         - "farmer_count"
     world:
         - "shared_subsidy_budget"
@@ -55,9 +58,18 @@ pioneer_share: 0.25
 num_decision_makers: 3
 
 # Subsidy policy configuration
-# subsidy_plan: -5 (100% land-based) to 5 (100% practice-based)
+# subsidy_plan: -1 (100% land-based) to 1 (100% practice-based)
 # 0 = balanced (50% land, 50% practice)
-subsidy_plan: -5
+subsidy_plan: 0
+
+# Lobby group configuration
+lobby_groups:
+    # Lobby strategy: 0=similar beliefs, 1=swing voters, 2=opposite beliefs
+    traditionalist_strategy: 0  # Target similar beliefs (conservative approach)
+    pioneer_strategy: 2         # Target opposite beliefs (high risk, high gain)
+    
+    # Cost per lobby attempt
+    lobby_cost_per_attempt: 1.0
 
 # Analogous to LPJmL pftpar, define the AFT parameters for the two different
 #   farmer types
